@@ -2,11 +2,10 @@
     "hooks": {
         "PostToolUse": [
             {
-                "matcher": "*",
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/budget.py\""
+                        "command": "python3 \"${PLUGIN_ROOT}/codex/budget.py\""
                     }
                 ]
             }
@@ -16,29 +15,29 @@
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/budget.py\""
+                        "command": "python3 \"${PLUGIN_ROOT}/codex/budget.py\""
                     }
                 ]
             }
         ],
         "PreCompact": [
             {
-                "matcher": "auto",
+                "matcher": "^auto$",
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/budget.py\""
+                        "command": "python3 \"${PLUGIN_ROOT}/codex/budget.py\""
                     }
                 ]
             }
         ],
         "SessionStart": [
             {
-                "matcher": "startup|resume|compact",
+                "matcher": "^compact$",
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/budget.py\""
+                        "command": "python3 \"${PLUGIN_ROOT}/codex/budget.py\""
                     }
                 ]
             }

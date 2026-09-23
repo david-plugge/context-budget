@@ -1,8 +1,11 @@
 {
-  "name": "context-budget",
-  "displayName": "Context Budget",
-  "version": "0.1.0",
-  "author": { "name": "David Plugge", "url": "https://github.com/david-plugge" },
-  "description": "Staged context-size hints that let the model pick its own compaction point and carry its own handoff across it.",
-  "hooks": "./hooks/hooks.json"
+    "name": "context-budget",
+    "displayName": "Context Budget",
+    "version": "0.1.0",
+    "author": {
+        "name": "David Plugge",
+        "url": "https://github.com/david-plugge"
+    },
+    "description": "Staged context-size hints that let the model pick its own compaction point and carry its own handoff across it.",
+    "hooks": "./hooks/hooks.json"
 }

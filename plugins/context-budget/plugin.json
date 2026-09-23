@@ -1,0 +1,22 @@
+{
+    "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+    "name": "context-budget",
+    "version": "0.2.0",
+    "description": "Let the agent choose a useful compaction boundary and restore its own handoff.",
+    "author": {
+        "name": "David Plugge",
+        "url": "https://github.com/david-plugge"
+    },
+    "extensions": {
+        "com.openai": {
+            "hooks": "./codex/hooks.json",
+            "interface": {
+                "displayName": "Context Budget",
+                "shortDescription": "Agent-guided context compaction",
+                "developerName": "David Plugge",
+                "category": "Productivity",
+                "capabilities": ["Read", "Write"]
+            }
+        }
+    }
+}

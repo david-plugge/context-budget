@@ -18,6 +18,12 @@ import json
 import os
 import sys
 import tempfile
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from memory.bridge import capture as capture_memory, context as memory_context
+from memory.history import capture as capture_history, context as history_context, capture_lookup_event
+
 
 def _threshold(name, default):
     try:
@@ -83,7 +89,11 @@ def context_tokens(transcript_path):
                     continue
                 if entry.get("isSidechain"):
                     continue
-                usage = (entry.get("message") or {}).get("usage") if isinstance(entry.get("message"), dict) else None
+                usage = (
+                    (entry.get("message") or {}).get("usage")
+                    if isinstance(entry.get("message"), dict)
+                    else None
+                )
                 if isinstance(usage, dict):
                     measured = (
                         usage.get("input_tokens", 0)
@@ -121,13 +131,17 @@ def load_state(event):
             state["handoff_path"] = os.path.join(scratchpad, "handoff.md")
         else:
             os.makedirs(HANDOFF_FALLBACK_DIR, exist_ok=True)
-            state["handoff_path"] = os.path.join(HANDOFF_FALLBACK_DIR, "%s.handoff.md" % session_id)
+            state["handoff_path"] = os.path.join(
+                HANDOFF_FALLBACK_DIR, "%s.handoff.md" % session_id
+            )
     return state
 
 
 def save_state(event, state):
     os.makedirs(STATE_DIR, exist_ok=True)
-    with open(state_path(event.get("session_id", "unknown")), "w", encoding="utf-8") as fh:
+    with open(
+        state_path(event.get("session_id", "unknown")), "w", encoding="utf-8"
+    ) as fh:
         json.dump(state, fh)
 
 
@@ -171,7 +185,9 @@ def handle_threshold_hint(event):
     if os.path.exists(handoff_path):
         passthrough()
 
-    stage = "firm" if tokens >= FIRM_TOKENS else "soft" if tokens >= SOFT_TOKENS else None
+    stage = (
+        "firm" if tokens >= FIRM_TOKENS else "soft" if tokens >= SOFT_TOKENS else None
+    )
     if stage is None:
         passthrough()
 
@@ -192,17 +208,21 @@ def handle_threshold_hint(event):
             "itself as soon as the handoff is there."
             % (tokens // 1000, handoff_brief(handoff_path))
         )
-        message = "Context budget stage 2/3: %dk tokens - compaction expected soon" % (tokens // 1000)
+        message = "Context budget stage 2/3: %dk tokens - compaction expected soon" % (
+            tokens // 1000
+        )
     else:
         context = (
             "[Context budget: %dk tokens used - stage 1 of 3]\n"
             "A cut is worth making from here on. No pressure: keep working "
             "until you reach a clean stopping point - a finished sub-task, a "
             "green test run, a completed research step. Compact exactly "
-            "then.\n%s"
-            % (tokens // 1000, handoff_brief(handoff_path))
+            "then.\n%s" % (tokens // 1000, handoff_brief(handoff_path))
         )
-        message = "Context budget stage 1/3: %dk tokens - compact at the next sensible break" % (tokens // 1000)
+        message = (
+            "Context budget stage 1/3: %dk tokens - compact at the next sensible break"
+            % (tokens // 1000)
+        )
 
     if new_stage:
         state["hints_fired"].append(stage)
@@ -223,14 +243,25 @@ def handle_pre_compact(event):
     if os.path.exists(handoff_path) and os.path.getsize(handoff_path) > 0:
         state["blocked_attempts"] = 0
         save_state(event, state)
-        emit("PreCompact", message="Compacting at the model's own break (%dk tokens, handoff present)" % (tokens // 1000))
+        emit(
+            "PreCompact",
+            message="Compacting at the model's own break (%dk tokens, handoff present)"
+            % (tokens // 1000),
+        )
 
     growth = max(0, tokens - state["last_seen_tokens"]) if PROJECT_AHEAD else 0
     state["last_seen_tokens"] = tokens
 
-    if tokens + growth >= HARD_TOKENS or state["blocked_attempts"] >= MAX_BLOCKED_ATTEMPTS:
+    if (
+        tokens + growth >= HARD_TOKENS
+        or state["blocked_attempts"] >= MAX_BLOCKED_ATTEMPTS
+    ):
         save_state(event, state)
-        emit("PreCompact", message="Context budget stage 3/3: hard cut at %dk tokens - compaction forced, no handoff" % (tokens // 1000))
+        emit(
+            "PreCompact",
+            message="Context budget stage 3/3: hard cut at %dk tokens - compaction forced, no handoff"
+            % (tokens // 1000),
+        )
 
     state["blocked_attempts"] += 1
     save_state(event, state)
@@ -293,36 +324,53 @@ def handle_session_start(event):
     state = load_state(event)
     handoff_path = state["handoff_path"]
 
-    if not os.path.exists(handoff_path):
-        passthrough()
-
     try:
         with open(handoff_path, encoding="utf-8") as fh:
             handoff = fh.read().strip()
     except OSError:
+        handoff = ""
+    memory = memory_context(event, "claude")
+    history = history_context(event, "claude")
+    if not handoff and not memory and not history:
         passthrough()
 
-    if not handoff:
-        passthrough()
-
-    os.replace(handoff_path, handoff_path + ".consumed")
-    state["hints_fired"] = []
-    state["blocked_attempts"] = 0
-    save_state(event, state)
+    if handoff:
+        os.replace(handoff_path, handoff_path + ".consumed")
+        state["hints_fired"] = []
+        state["blocked_attempts"] = 0
+        save_state(event, state)
 
     emit(
         "SessionStart",
-        context=(
-            "[Handoff from before the compaction - written by you, takes "
-            "precedence over the automatic summary]\n\n%s" % handoff
+        context="\n\n".join(
+            part for part in (
+                "[Handoff from before the compaction - written by you, takes "
+                 "precedence over the automatic summary]\n\n%s" % handoff if handoff else "",
+                memory,
+                history,
+            ) if part
         ),
-        message="Handoff restored after compaction",
+        message="Handoff and memory restored after compaction" if handoff else "Memory restored after compaction",
     )
 
 
 def main():
     event = read_event()
     name = event.get("hook_event_name")
+    if name == "PostToolUse":
+        try:
+            capture_lookup_event(event, "claude")
+        except (OSError, ValueError, TypeError):
+            pass  # Telemetry must never interrupt the budget hook.
+    if name in ("Stop", "PreCompact"):
+        try:
+            capture_history(event, "claude")
+        except (OSError, ValueError, TypeError):
+            pass  # History lookup must not interrupt compaction.
+        try:
+            capture_memory(event, "claude")
+        except (OSError, ValueError, TypeError):
+            pass  # Memory is experimental; never interrupt the budget gate.
     if name == "PreCompact":
         handle_pre_compact(event)
     elif name == "SessionStart":
