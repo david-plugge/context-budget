@@ -1,0 +1,15 @@
+{
+    "name": "context-budget",
+    "description": "Let the model choose its own compaction point instead of hitting a context wall.",
+    "owner": {
+        "name": "David Plugge",
+        "url": "https://github.com/david-plugge"
+    },
+    "plugins": [
+        {
+            "name": "context-budget",
+            "source": "./plugins/context-budget",
+            "description": "Staged context-size hints that let the model pick its own compaction point and carry its own handoff across it."
+        }
+    ]
+}
